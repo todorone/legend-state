@@ -72,6 +72,7 @@ export function enableLegendStateReact() {
                     tracking.callbacksMarked.delete(disposeOld);
                     disposeOld();
                     mapOwnersDispose.delete(owner);
+                    return true;
                 }
             }
         }
@@ -80,17 +81,32 @@ export function enableLegendStateReact() {
         let dispatcher;
         let didBeginTracking = false;
         let prevNodes;
+        // let lock;
+        // const canUseOwner = +ReactVersion.split('.')[0] >= 18;
+        const canUseOwner = true;
+        let _owner;
+        let owner;
         let lock;
-        const canUseOwner = +ReactVersion.split('.')[0] >= 18;
+        Object.defineProperty(ReactInternals.ReactCurrentOwner, 'current', {
+            get() {
+                return _owner;
+            },
+            set(newOwner) {
+                _owner = newOwner;
+                if (_owner) owner = _owner;
+                console.log('last owner', owner);
+                // if (newOwner) debugger;
+            },
+        });
         Object.defineProperty(ReactInternals.ReactCurrentDispatcher, 'current', {
             get() {
                 return dispatcher;
             },
             set(newDispatcher) {
-                const owner = ReactInternals.ReactCurrentOwner.current;
                 if (newDispatcher && !lock) {
                     lock = true;
                     // If owner then this might be a component
+                    console.log('dispatcher', owner);
                     if (!canUseOwner || owner) {
                         const useCallback = newDispatcher.useCallback;
                         // Check properties of newDispatcher's useCallback to determine whether this is a component and we should do the work
@@ -100,10 +116,6 @@ export function enableLegendStateReact() {
                         // So this will be the end of the render of the previous dispatcher
                         // And we track all accessed nodes
                         if (dispatcher && didBeginTracking && useCallback.length < 2) {
-                            if (process.env.NODE_ENV === 'development' && dispatcher !== didBeginTracking) {
-                                throw new Error('[legend-state] Unexpected dispatcher');
-                            }
-
                             didBeginTracking = undefined;
                             // If the previous dispatcher tracked nodes then set up hooks
                             if (tracking.nodes) {
@@ -123,8 +135,9 @@ export function enableLegendStateReact() {
 
                                     if (canUseOwner) {
                                         // Dispose old listeners if exists
-                                        runOwnerDisposes(owner);
-                                        runOwnerDisposes(owner.alternate);
+                                        if (!runOwnerDisposes(owner.alternate)) {
+                                            runOwnerDisposes(owner);
+                                        }
                                     }
 
                                     // Track all of the nodes accessed during the dispatcher
@@ -144,7 +157,6 @@ export function enableLegendStateReact() {
                                             // Clear tracing
                                             tracking.listeners = undefined;
                                             tracking.updates = undefined;
-
                                             const cachedNodes = tracking.nodes;
                                             dispatcher.useEffect(() => {
                                                 // Workaround for React 18's double calling useEffect. If this is the
