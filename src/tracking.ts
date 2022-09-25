@@ -73,7 +73,7 @@ export function scheduleSweep() {
 
 export function sweep() {
     timeoutSweep = undefined;
-    if (tracking.callbacksMarked.size) console.log('sweeping');
+    if (tracking.callbacksMarked.size) console.log('sweeping', tracking.callbacksMarked.size);
     for (let marked of tracking.callbacksMarked) {
         marked();
     }
